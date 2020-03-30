@@ -1,6 +1,15 @@
-(use-modules
- (srfi srfi-9)
- (rnrs base))
+(define-module (vector)
+  #:use-module (srfi srfi-9)
+  #:use-module (rnrs base)
+  #:export (make-vec3
+            vec3-x vec3-y vec3-z
+            v->list
+            assert-vec3
+            v+
+            v-
+            v*
+            vdot
+            vcross))
 
 (define-record-type vec3
   (make-vec3 x y z)
