@@ -9,7 +9,9 @@
             v-
             v*
             vdot
-            vcross))
+            vcross
+            vnorm
+            vunit))
 
 (define-record-type vec3
   (make-vec3 x y z)
@@ -17,6 +19,8 @@
   (x vec3-x)
   (y vec3-y)
   (z vec3-z))
+
+(define vzero (make-vec3 0 0 0))
 
 (define (v->list v)
   (list (vec3-x v) (vec3-y v) (vec3-z v)))
@@ -37,6 +41,19 @@
   (make-vec3 (- (* (vec3-y a) (vec3-z b)) (* (vec3-z a) (vec3-y b)))
              (- (* (vec3-z a) (vec3-x b)) (* (vec3-x a) (vec3-z b)))
              (- (* (vec3-x a) (vec3-y b)) (* (vec3-y a) (vec3-x b)))))
+
+(define (vnorm v)
+  (let ((x (vec3-x v))
+        (y (vec3-y v))
+        (z (vec3-z v)))
+    (sqrt (+ (* x x)
+             (* y y)
+             (* z z)))))
+
+(define (vunit v)
+  (let ((n (vnorm v)))
+    (if (= 0 n) vzero
+        (v* v (/ 1.0 n)))))
 
 ;;
 ;;
@@ -75,3 +92,5 @@
 (assert-equal (make-vec3 0 0 0) (vcross (make-vec3 1 0 0) (make-vec3 1 0 0)))
 (assert-equal (make-vec3 0 0 1) (vcross (make-vec3 1 0 0) (make-vec3 0 1 0)))
 (assert-equal (make-vec3 0 -1 0) (vcross (make-vec3 1 0 0) (make-vec3 0 0 1)))
+
+;; FIXME (assert-equal (make-vec3 0 0 1.0) (vunit (make-vec3 0 0 2)))
