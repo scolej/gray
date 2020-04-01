@@ -58,6 +58,19 @@ range C through D."
          (d1 (v+ d0 (v* normal (* -2 (vdot normal d0))))))
     (make-ray pos d1 (1+ (ray-bounces ray)))))
 
+;; FIXME probably not technically properly random
+;; "corner" values more likely than "face" values
+(define (random-unit-sphere)
+  (vunit (make-vec3 (- (random 2.0) 1)
+                    (- (random 2.0) 1)
+                    (- (random 2.0) 1))))
+
+(define (diffuse-reflect ray pos normal)
+  "Make a new ray, reflected diffusely by NORMAL at POS."
+  (make-ray pos
+            (vunit (v+ normal (random-unit-sphere)))
+            (1+ (ray-bounces ray))))
+
 (define (hit-sphere centre radius ray)
   "Determine if RAY hits a sphere at CENTRE with RADIUS.
 Return #f if it misses, otherwise how far along RAY you need to go to
@@ -74,68 +87,76 @@ get to the first intersection with the sphere's surface."
 
 (define (sphere centre radius)
   (lambda (ray world)
-    (if #f ;; (< (vnorm (v- (ray-origin ray) centre)) radius)
-        'inside
-        (let ((t (hit-sphere centre radius ray)))
-          (if (or (not t) (< t 0))
-              'missed
-              (cons
-               t
-               (lambda ()
-                 (let* ((hit-point (ray-at ray t))
-                        (normal (vunit (v- hit-point centre))))
-                   (blend '(1 0 0)
-                          (trace world (reflect ray hit-point normal))
-                          0.5)))))))))
+    (let ((t (hit-sphere centre radius ray)))
+      (if (or (not t) (< t 0))
+          'missed
+          (cons
+           t
+           (lambda ()
+             (let* ((hit-point (ray-at ray t))
+                    (normal (vunit (v- hit-point centre))))
+               (attenuate
+                0.8
+                (blend '(1 0 0)
+                       (trace world (reflect ray hit-point normal))
+                       0.5)))))))))
+
+;; FIXME surely I exist in the standard libraries
+(define (repeat n f)
+  (if (= n 0) '()
+      (cons (f) (repeat (1- n) f))))
 
 (define (inf-plane y)
   "Infinite horizontal green plane offset vertically by Y."
   (let ((n (make-vec3 0 1 0))
         (po (make-vec3 0 y 0)))
     (lambda (ray world)
-      (if #f ;; (< (vec3-y (ray-origin ray)) y)
-          'inside
-          (let ((denom (vdot n (ray-dir ray))))
-            (if (>= denom 0)
-                'missed
-                (let* ((po->o (v- (ray-origin ray) po))
-                       (t (/ (vdot n po->o) denom -1))
-                       (hit-point (ray-at ray t)))
-                  (if (< t 0)
-                      'missed
-                      (cons
-                       t
-                       (lambda ()
-                         (blend
-                          ;; Blend towards sky as we get further away
-                          (blend '(0.3 0.6 0.3) '(0.7 0.8 0.9) (- 1 (/ 1 (+ (* 0.3 t) 1))))
-                          (trace world (reflect ray hit-point n))
-                          0.5)))))))))))
+      (let ((denom (vdot n (ray-dir ray))))
+        (if (>= denom 0)
+            'missed
+            (let* ((po->o (v- (ray-origin ray) po))
+                   (t (/ (vdot n po->o) denom -1))
+                   (hit-point (ray-at ray t)))
+              (if (< t 0)
+                  'missed
+                  (cons
+                   t
+                   (lambda ()
+                     (attenuate
+                      0.8
+                      (blend
+                       ;; Blend towards sky as we get further away
+                       (blend '(0.3 0.6 0.3) '(0.7 0.8 0.9) (- 1 (/ 1 (+ (* 0.3 t) 1))))
+                       ;; Send out random rays and average them
+                       (apply
+                        avgl (repeat
+                              5
+                              (lambda ()
+                                (trace world
+                                       (diffuse-reflect ray hit-point n)))))
+                       0.5)))))))))))
 
 (define world
-  (list (sphere (make-vec3 -3 2 -5.3)
+  (list (sphere (make-vec3 -3.0  2.0 -5.3)
                 0.7)
-        (sphere (make-vec3 0 0 -3.0)
+        (sphere (make-vec3  0.0  0.1 -3.0)
                 0.7)
-        (sphere (make-vec3 0.7 -0.8 -1.8)
+        (sphere (make-vec3  0.7 -0.8 -1.8)
                 0.7)
+        (sphere (make-vec3  -0.8 -10.74 -1.6)
+                10.0)
         (inf-plane -0.8)))
 
 (define (trace world ray)
   "Each entry in WORLD represents an object. The entry should be a
 function of RAY and WORLD which returns one of:
-
  - The symbol 'missed to indicate the ray does not hit the object.
-
- - The symbol 'inside to indicate that the ray originates inside the object
-
  - A pair (T . F) where T is the distance travelled along RAY before
 hitting the object. F is a function of no arguments which determines
 the colour seen along RAY."
   (let ((objects (map (lambda (o) (o ray world)) world)))
     (cond
-     ((> (ray-bounces ray) 10) '(0 0 0))
-     ((any (lambda (s) (eq? s 'inside)) objects) '(0 0 0))
+     ((> (ray-bounces ray) 5) '(0 0 0))
      ((every (lambda (s) (eq? s 'missed)) objects) (bg ray))
      (else ((cdr (car (sort (remove (lambda (v) (not (pair? v)))
                                     objects)
@@ -162,7 +183,7 @@ the colour seen along RAY."
                   (map
                    (lambda (p)
                      (f (rescale 0 w
-                                 aspect (* -1 aspect)
+                                 (* -1 aspect) aspect
                                  (+ x (car p)))
                         (rescale 0 h
                                  1 -1
@@ -178,14 +199,16 @@ the colour seen along RAY."
   (format #t "Done!\n"))
 
 (define (img-fun x y)
+  ;; FIXME introducing distortion at edges?
+  ;; should use spherical mapping?
   (trace world (make-ray
-                (make-vec3 0 0 0)
-                (vunit (make-vec3 x y -1.1))
+                (make-vec3 0 0 0.5)
+                (vunit (make-vec3 x y -1.9))
                 0)))
-
 
 (call-with-output-file "img.ppm"
   (lambda (s)
-    (write-ppm s 70 50 img-fun)
-    ;; (write-ppm s  640 480 img-fun)
-    ))
+    (let ((f 1.0))
+      (write-ppm s
+                 (inexact->exact (round (* f 640)))
+                 (inexact->exact (round (* f 480))) img-fun))))
