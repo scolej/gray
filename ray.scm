@@ -130,7 +130,7 @@ get to the first intersection with the sphere's surface."
                        ;; Send out random rays and average them
                        (apply
                         avgl (repeat
-                              5
+                              10
                               (lambda ()
                                 (trace world
                                        (diffuse-reflect ray hit-point n)))))
@@ -198,17 +198,29 @@ the colour seen along RAY."
       (newline s)))
   (format #t "Done!\n"))
 
-(define (img-fun x y)
-  ;; FIXME introducing distortion at edges?
-  ;; should use spherical mapping?
-  (trace world (make-ray
-                (make-vec3 0 0 0.5)
-                (vunit (make-vec3 x y -1.9))
-                0)))
+;; FIXME really?
+(define pi 3.1415926353)
+(define (deg->rad d) (* (/ d 180.0) pi))
 
-(call-with-output-file "img.ppm"
-  (lambda (s)
-    (let ((f 1.0))
+(define (img-fun x y)
+  (let* ((cam-pos (make-vec3 0 0 0.5))
+         (fov (deg->rad 60))
+         (theta (* x (/ fov 2)))
+         (phi (* y (/ fov 2)))
+         (xx (* (cos phi) (sin theta)))
+         (zz (* -1 (cos phi) (cos theta)))
+         (yy (sin phi)))
+    (trace world (make-ray
+                  cam-pos
+                  (make-vec3 xx yy zz)
+                  0))))
+
+(define (make-image f)
+  (call-with-output-file "img.ppm"
+    (lambda (s)
       (write-ppm s
                  (inexact->exact (round (* f 640)))
                  (inexact->exact (round (* f 480))) img-fun))))
+
+;; (make-image 0.3)
+(make-image 1.0)
