@@ -46,11 +46,13 @@ range C through D."
         ((< x min) min)
         (#t x)))
 
+(define sun-dir (vunit (make-vec3 -1.0 1.0 0.0)))
+
 (define (bg ray)
-  (let ((v (vec3-y (ray-dir ray))))
-    (list (rescale -1 1 0.5 0.9 v)
-          (rescale -1 1 0.5 0.9 v)
-          (rescale -1 1 0.9 1.0 v))))
+  (let ((v (rescale -1 1 0 1
+                 (vdot (ray-dir ray)
+                       sun-dir))))
+    (blend '(0.2 0.2 0.4) '(1 1 1) v)))
 
 (define (reflect ray pos normal)
   "Make a new ray, reflected perfectly by NORMAL at POS."
@@ -85,21 +87,48 @@ get to the first intersection with the sphere's surface."
         (/ (+ b (sqrt descr)) (* -2 a))
         #f)))
 
-(define (sphere centre radius)
+(define (perfectly-reflective ray t hit-point normal)
+    (lambda ()
+      (trace world (reflect ray hit-point normal))))
+
+(define (diffuse-colour r g b att)
+  (lambda (ray t hit-point normal)
+    (lambda ()
+      (let ((ca (list r g b))
+            (cb (apply
+                 avgl (repeat
+                       10
+                       (lambda ()
+                         (trace world
+                                (diffuse-reflect ray hit-point normal)))))))
+        (attenuate att (blend ca cb 0.5))))))
+
+(define (totally-random ray t hit-point normal)
+  "A different colour every time we hit the surface!"
+  (lambda ()
+    (list (random 1.0)
+          (random 1.0)
+          (random 1.0))))
+
+(define (totally-black ray t hit-point normal)
+  (lambda () '(0 0 0)))
+
+(define (sphere centre radius material)
+  "Make a sphere at CENTRE with RADIUS and MATERIAL.
+CENTRE and RADIUS are vectors.
+
+FIXME MATERIAL should be a procedure accepting the incident ray and
+the distance along the ray at which the surface is to be found, which
+returns a thunk to determine the surface colour."
   (lambda (ray world)
     (let ((t (hit-sphere centre radius ray)))
       (if (or (not t) (< t 0))
           'missed
           (cons
            t
-           (lambda ()
-             (let* ((hit-point (ray-at ray t))
-                    (normal (vunit (v- hit-point centre))))
-               (attenuate
-                0.8
-                (blend '(1 0 0)
-                       (trace world (reflect ray hit-point normal))
-                       0.5)))))))))
+           (let* ((hit-point (ray-at ray t))
+                  (normal (vunit (v- hit-point centre))))
+             (material ray t hit-point normal)))))))
 
 ;; FIXME surely I exist in the standard libraries
 (define (repeat n f)
@@ -137,15 +166,13 @@ get to the first intersection with the sphere's surface."
                        0.5)))))))))))
 
 (define world
-  (list (sphere (make-vec3 -3.0  2.0 -5.3)
-                0.7)
-        (sphere (make-vec3  0.0  0.1 -3.0)
-                0.7)
-        (sphere (make-vec3  0.7 -0.8 -1.8)
-                0.7)
-        (sphere (make-vec3  -0.8 -10.74 -1.6)
-                10.0)
-        (inf-plane -0.8)))
+  (list
+   (sphere (make-vec3  0.0 1.0 -1.0) 0.7 perfectly-reflective)
+   (sphere (make-vec3 -1.3 1.1 -1.0) 0.4 (diffuse-colour 1 0 0 0.8))
+   (sphere (make-vec3 -0.7 0.7  0.0) 0.4 totally-black)
+   (sphere (make-vec3  1.3 1.1 -1.0) 0.4 (diffuse-colour 0 0 1 0.8))
+   (sphere (make-vec3  0.7 0.7  0.0) 0.4 totally-random)
+   (inf-plane 0.0)))
 
 (define (trace world ray)
   "Each entry in WORLD represents an object. The entry should be a
@@ -156,7 +183,7 @@ hitting the object. F is a function of no arguments which determines
 the colour seen along RAY."
   (let ((objects (map (lambda (o) (o ray world)) world)))
     (cond
-     ((> (ray-bounces ray) 5) '(0 0 0))
+     ((> (ray-bounces ray) 3) '(0 0 0))
      ((every (lambda (s) (eq? s 'missed)) objects) (bg ray))
      (else ((cdr (car (sort (remove (lambda (v) (not (pair? v)))
                                     objects)
@@ -203,7 +230,7 @@ the colour seen along RAY."
 (define (deg->rad d) (* (/ d 180.0) pi))
 
 (define (img-fun x y)
-  (let* ((cam-pos (make-vec3 0 0 0.5))
+  (let* ((cam-pos (make-vec3 0.0 1.0 2.0))
          (fov (deg->rad 60))
          (theta (* x (/ fov 2)))
          (phi (* y (/ fov 2)))
@@ -216,11 +243,15 @@ the colour seen along RAY."
                   0))))
 
 (define (make-image f)
+  "Make an image, with dimensions scaled by the factor F."
   (call-with-output-file "img.ppm"
     (lambda (s)
       (write-ppm s
                  (inexact->exact (round (* f 640)))
                  (inexact->exact (round (* f 480))) img-fun))))
 
+;; (make-image 0.05)
+;; (make-image 0.1)
+;; (make-image 0.2)
 ;; (make-image 0.3)
 (make-image 1.0)
