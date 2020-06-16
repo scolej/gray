@@ -102,17 +102,20 @@
     (if (> descr 0)
         (/ (+ b (sqrt descr)) (* -2 a))
         #f)))
+;;
+;; Materials
+;;
 
 ;; Material which is perfectly reflective. The ray bounces straight
 ;; off, all colour comes from wherever the ray goes.
-(define (perfectly-reflective trace)
+(define (perfectly-reflective tr)
   (lambda (ray t hit-point normal)
     (lambda ()
-      (trace (reflect ray hit-point normal)))))
+      (tr (reflect ray hit-point normal)))))
 
 ;; Imperfect reflection. Some colour from this material, some colour
 ;; from randomly refelcted rays.
-(define (diffuse-colour trace r g b att)
+(define (diffuse-colour tr r g b att)
     (lambda (ray t hit-point normal)
       (lambda ()
         (let ((ca (list r g b))
@@ -120,7 +123,7 @@
                    avgl (repeat
                          10
                          (lambda ()
-                           (trace (diffuse-reflect ray hit-point normal)))))))
+                           (tr (diffuse-reflect ray hit-point normal)))))))
           (attenuate att (blend ca cb 0.5))))))
 
 ;; A different colour every time we hit the surface!
@@ -132,6 +135,10 @@
 
 (define (totally-black ray t hit-point normal)
   (lambda () '(0 0 0)))
+
+;;
+;;
+;;
 
 ;; Make a sphere at CENTRE with RADIUS and MATERIAL.
 ;; CENTRE and RADIUS are vectors.
@@ -251,9 +258,9 @@
 (define pi 3.1415926353)
 (define (deg->rad d) (* (/ d 180.0) pi))
 
-;; Build a tracing function for WORLD.
+;; Trace pixels using the tracing function TR.
 ;; Returns a function taking pixel coordinates & returning a colour.
-(define (img-fun world)
+(define (img-fun tr)
   (lambda (x y)
     (let* ((cam-pos (make-vec3 0.0 1.0 2.0))
            (fov (deg->rad 60))
@@ -262,20 +269,20 @@
            (xx (* (cos phi) (sin theta)))
            (zz (* -1 (cos phi) (cos theta)))
            (yy (sin phi)))
-      (trace world (make-ray
-                    cam-pos
-                    (make-vec3 xx yy zz)
-                    0)))))
+      (tr (make-ray
+           cam-pos
+           (make-vec3 xx yy zz)
+           0)))))
 
-;; Render an image of SCENE to FILENAME.
+;; Render an image using tracing function TR to FILENAME.
 ;; Nominal width is W.
 ;; Nominal height is H.
 ;; Actual dimensions are scaled by SCALE.
-(define (render filename scene w h scale)
+(define (render filename tr w h scale)
   (call-with-output-file (string-append filename ".ppm")
     (lambda (s)
       (write-ppm
        s
        (inexact->exact (round (* scale w)))
        (inexact->exact (round (* scale h)))
-       (img-fun scene)))))
+       (img-fun tr)))))
