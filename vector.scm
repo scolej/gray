@@ -1,10 +1,10 @@
 (define-module (vector)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs base)
-  #:export (make-vec3
-            vec3-x vec3-y vec3-z
-            v->list
-            assert-vec3
+  #:export (v3
+            v3x v3y v3z
+            v3->list
+            assert-v3
             v+
             v-
             v*
@@ -14,38 +14,38 @@
             vunit))
 
 (define-record-type vec3
-  (make-vec3 x y z)
-  vec3?
-  (x vec3-x)
-  (y vec3-y)
-  (z vec3-z))
+  (v3 x y z)
+  v3?
+  (x v3x)
+  (y v3y)
+  (z v3z))
 
-(define vzero (make-vec3 0 0 0))
+(define vzero (v3 0 0 0))
 
-(define (v->list v)
-  (list (vec3-x v) (vec3-y v) (vec3-z v)))
+(define (v3->list v)
+  (list (v3x v) (v3y v) (v3z v)))
 
 (define (vmap f . vs)
-  (make-vec3 (apply f (map vec3-x vs))
-             (apply f (map vec3-y vs))
-             (apply f (map vec3-z vs))))
+  (v3 (apply f (map v3x vs))
+      (apply f (map v3y vs))
+      (apply f (map v3z vs))))
 
-(define (assert-vec3 v) (assert (vec3? v)))
+(define (assert-v3 v) (assert (v3? v)))
 
 (define (v+ . vs) (apply vmap + vs))
 (define (v- . vs) (apply vmap - vs))
 (define (v* v s) (vmap (lambda (x) (* s x)) v))
-(define (vdot a b) (apply + (v->list (vmap * a b))))
+(define (vdot a b) (apply + (v3->list (vmap * a b))))
 
 (define (vcross a b)
-  (make-vec3 (- (* (vec3-y a) (vec3-z b)) (* (vec3-z a) (vec3-y b)))
-             (- (* (vec3-z a) (vec3-x b)) (* (vec3-x a) (vec3-z b)))
-             (- (* (vec3-x a) (vec3-y b)) (* (vec3-y a) (vec3-x b)))))
+  (v3 (- (* (v3y a) (v3z b)) (* (v3z a) (v3y b)))
+      (- (* (v3z a) (v3x b)) (* (v3x a) (v3z b)))
+      (- (* (v3x a) (v3y b)) (* (v3y a) (v3x b)))))
 
 (define (vnorm v)
-  (let ((x (vec3-x v))
-        (y (vec3-y v))
-        (z (vec3-z v)))
+  (let ((x (v3x v))
+        (y (v3y v))
+        (z (v3z v)))
     (sqrt (+ (* x x)
              (* y y)
              (* z z)))))

@@ -60,7 +60,7 @@
 
 ;; Direction in which sun is shining.
 (define sun-dir
-  (vunit (make-vec3 -1.0 1.0 0.0)))
+  (vunit (v3 -1.0 1.0 0.0)))
 
 ;; When the ray doesn't hit anything, use this for a background colour.
 (define (bg ray)
@@ -79,9 +79,9 @@
 ;; FIXME probably not technically properly random
 ;; "corner" values more likely than "face" values
 (define (random-unit-sphere)
-  (vunit (make-vec3 (- (random 2.0) 1)
-                    (- (random 2.0) 1)
-                    (- (random 2.0) 1))))
+  (vunit (v3 (- (random 2.0) 1)
+             (- (random 2.0) 1)
+             (- (random 2.0) 1))))
 
 ;; Make a new ray, reflected diffusely by NORMAL at POS.
 (define (diffuse-reflect ray pos normal)
@@ -116,15 +116,15 @@
 ;; Imperfect reflection. Some colour from this material, some colour
 ;; from randomly refelcted rays.
 (define (diffuse-colour tr r g b att)
-    (lambda (ray t hit-point normal)
-      (lambda ()
-        (let ((ca (list r g b))
-              (cb (apply
-                   avgl (repeat
-                         10
-                         (lambda ()
-                           (tr (diffuse-reflect ray hit-point normal)))))))
-          (attenuate att (blend ca cb 0.5))))))
+  (lambda (ray t hit-point normal)
+    (lambda ()
+      (let ((ca (list r g b))
+            (cb (apply
+                 avgl (repeat
+                       10
+                       (lambda ()
+                         (tr (diffuse-reflect ray hit-point normal)))))))
+        (attenuate att (blend ca cb 0.5))))))
 
 ;; A different colour every time we hit the surface!
 (define (totally-random ray t hit-point normal)
@@ -167,8 +167,8 @@
 
 ;; Infinite horizontal green plane offset vertically by Y.
 (define (inf-plane y)
-  (let ((n (make-vec3 0 1 0))
-        (po (make-vec3 0 y 0)))
+  (let ((n (v3 0 1 0))
+        (po (v3 0 y 0)))
     (lambda (ray world)
       (let ((denom (vdot n (ray-dir ray))))
         (if (>= denom 0)
@@ -262,7 +262,7 @@
 ;; Returns a function taking pixel coordinates & returning a colour.
 (define (img-fun tr)
   (lambda (x y)
-    (let* ((cam-pos (make-vec3 0.0 1.0 2.0))
+    (let* ((cam-pos (v3 0.0 1.0 2.0))
            (fov (deg->rad 60))
            (theta (* x (/ fov 2)))
            (phi (* y (/ fov 2)))
@@ -271,7 +271,7 @@
            (yy (sin phi)))
       (tr (make-ray
            cam-pos
-           (make-vec3 xx yy zz)
+           (v3 xx yy zz)
            0)))))
 
 ;; Render an image using tracing function TR to FILENAME.
