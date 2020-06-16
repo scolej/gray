@@ -1,8 +1,17 @@
-(use-modules
- (srfi srfi-1)
- (srfi srfi-9)
- (ice-9 format)
- (vector))
+(define-module (ray)
+  #:use-module (srfi srfi-1)
+  #:use-module (srfi srfi-9)
+  #:use-module (ice-9 format)
+  #:use-module (vector)
+  #:export
+  (perfectly-reflective
+   diffuse-colour
+   totally-random
+   totally-black
+   sphere
+   inf-plane
+   render
+   trace))
 
 (define-record-type ray
   (make-ray origin direction bounces)
@@ -96,23 +105,23 @@
 
 ;; Material which is perfectly reflective. The ray bounces straight
 ;; off, all colour comes from wherever the ray goes.
-(define (perfectly-reflective ray t hit-point normal)
-  (lambda ()
-    (trace world (reflect ray hit-point normal))))
+(define (perfectly-reflective trace)
+  (lambda (ray t hit-point normal)
+    (lambda ()
+      (trace (reflect ray hit-point normal)))))
 
 ;; Imperfect reflection. Some colour from this material, some colour
 ;; from randomly refelcted rays.
-(define (diffuse-colour r g b att)
-  (lambda (ray t hit-point normal)
-    (lambda ()
-      (let ((ca (list r g b))
-            (cb (apply
-                 avgl (repeat
-                       10
-                       (lambda ()
-                         (trace world
-                                (diffuse-reflect ray hit-point normal)))))))
-        (attenuate att (blend ca cb 0.5))))))
+(define (diffuse-colour trace r g b att)
+    (lambda (ray t hit-point normal)
+      (lambda ()
+        (let ((ca (list r g b))
+              (cb (apply
+                   avgl (repeat
+                         10
+                         (lambda ()
+                           (trace (diffuse-reflect ray hit-point normal)))))))
+          (attenuate att (blend ca cb 0.5))))))
 
 ;; A different colour every time we hit the surface!
 (define (totally-random ray t hit-point normal)
@@ -132,7 +141,7 @@
 ;; - the distance along the ray at which the surface is to be found
 ;; - the hit point
 ;; - the surface normal
-;; which returns a thunk to determine the surface colour.
+;; which returns a thunk that determines the surface colour.
 (define (sphere centre radius material)
   (lambda (ray world)
     (let ((t (hit-sphere centre radius ray)))
@@ -200,6 +209,8 @@
                    (m (cdr (car (sort hit s)))))
               (m))))))
 
+;; Writes an image to stream S with width W and height H of the world
+;; described by function F.
 (define (write-ppm s w h f)
   (display "P3" s) (newline s)
   (format s "~d ~d" w h) (newline s)
@@ -240,36 +251,31 @@
 (define pi 3.1415926353)
 (define (deg->rad d) (* (/ d 180.0) pi))
 
-;; The world to render.
-(define world
-  (list
-   (sphere (make-vec3  0.0 1.0 -1.0) 0.7 perfectly-reflective)
-   (sphere (make-vec3 -1.3 1.1 -1.0) 0.4 (diffuse-colour 1 0 0 0.8))
-   (sphere (make-vec3 -0.7 0.7  0.0) 0.4 totally-black)
-   (sphere (make-vec3  1.3 1.1 -1.0) 0.4 (diffuse-colour 0 0 1 0.8))
-   (sphere (make-vec3  0.7 0.7  0.0) 0.4 totally-random)
-   (inf-plane 0.0)))
+;; Build a tracing function for WORLD.
+;; Returns a function taking pixel coordinates & returning a colour.
+(define (img-fun world)
+  (lambda (x y)
+    (let* ((cam-pos (make-vec3 0.0 1.0 2.0))
+           (fov (deg->rad 60))
+           (theta (* x (/ fov 2)))
+           (phi (* y (/ fov 2)))
+           (xx (* (cos phi) (sin theta)))
+           (zz (* -1 (cos phi) (cos theta)))
+           (yy (sin phi)))
+      (trace world (make-ray
+                    cam-pos
+                    (make-vec3 xx yy zz)
+                    0)))))
 
-;; Trace rays through a pixel coordinate and determine the colour.
-(define (img-fun x y)
-  (let* ((cam-pos (make-vec3 0.0 1.0 2.0))
-         (fov (deg->rad 60))
-         (theta (* x (/ fov 2)))
-         (phi (* y (/ fov 2)))
-         (xx (* (cos phi) (sin theta)))
-         (zz (* -1 (cos phi) (cos theta)))
-         (yy (sin phi)))
-    (trace world (make-ray
-                  cam-pos
-                  (make-vec3 xx yy zz)
-                  0))))
-
-;; Make an image, with dimensions scaled by the factor F.
-(define (make-image f)
-  (call-with-output-file "img.ppm"
+;; Render an image of SCENE to FILENAME.
+;; Nominal width is W.
+;; Nominal height is H.
+;; Actual dimensions are scaled by SCALE.
+(define (render filename scene w h scale)
+  (call-with-output-file (string-append filename ".ppm")
     (lambda (s)
-      (write-ppm s
-                 (inexact->exact (round (* f 640)))
-                 (inexact->exact (round (* f 480))) img-fun))))
-
-(make-image 0.1)
+      (write-ppm
+       s
+       (inexact->exact (round (* scale w)))
+       (inexact->exact (round (* scale h)))
+       (img-fun scene)))))
