@@ -13,4 +13,4 @@
          ray))
 
 (statprof
- (lambda () (render "scene-1" tr 800 600 0.05)))
+ (lambda () (render "scene-1" tr 800 600 0.4)))
