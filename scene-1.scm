@@ -1,6 +1,7 @@
 (use-modules
  (ray)
- (vector))
+ (vector)
+ (statprof))
 
 (define (tr ray)
   (trace (list (sphere (v3 0.0 1.0 -1.0) 0.7 (perfectly-reflective tr))
@@ -11,4 +12,5 @@
                (inf-plane 0.0))
          ray))
 
-(render "scene-1" tr 800 600 0.05)
+(statprof
+ (lambda () (render "scene-1" tr 800 600 0.05)))
