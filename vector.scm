@@ -1,7 +1,6 @@
 (define-module (vector)
   #:use-module (srfi srfi-9)
   #:use-module (rnrs base)
-  #:use-module (rnrs arithmetic flonums)
   #:export (v3
             v3x v3y v3z
             assert-v3
@@ -14,17 +13,11 @@
             vunit))
 
 (define-record-type vec3
-  (make-v3 x y z)
+  (v3 x y z)
   v3?
   (x v3x)
   (y v3y)
   (z v3z))
-
-(define (v3 x y z)
-  (make-v3
-   (real->flonum x)
-   (real->flonum y)
-   (real->flonum z)))
 
 (define-syntax vmap1
   (syntax-rules ()
@@ -49,30 +42,29 @@
 
 (define (assert-v3 v) (assert (v3? v)))
 
-(define (v+ a b) (vmap fl+ a b))
-(define (v- a b) (vmap fl- a b))
+(define (v+ a b) (vmap + a b))
+(define (v- a b) (vmap - a b))
 
 (define (v* v s)
-  (let* ((fls (real->flonum s))
-         (f (lambda (x) (fl* fls x))))
+  (let ((f (lambda (x) (* s x))))
     (vmap f v)))
 
-(define (vdot a b) (vmap1 fl+ fl* a b))
+(define (vdot a b) (vmap1 + * a b))
 
 (define (vcross a b)
-  (v3 (fl- (fl* (v3y a) (v3z b)) (fl* (v3z a) (v3y b)))
-      (fl- (fl* (v3z a) (v3x b)) (fl* (v3x a) (v3z b)))
-      (fl- (fl* (v3x a) (v3y b)) (fl* (v3y a) (v3x b)))))
+  (v3 (- (* (v3y a) (v3z b)) (* (v3z a) (v3y b)))
+      (- (* (v3z a) (v3x b)) (* (v3x a) (v3z b)))
+      (- (* (v3x a) (v3y b)) (* (v3y a) (v3x b)))))
 
 (define (vnorm v)
   (let ((x (v3x v))
         (y (v3y v))
         (z (v3z v)))
-    (flsqrt (fl+ (fl* x x)
-                 (fl* y y)
-                 (fl* z z)))))
+    (sqrt (+ (* x x)
+             (* y y)
+             (* z z)))))
 
 (define (vunit v)
   (let ((n (vnorm v)))
     (if (= 0 n) vzero
-        (v* v (fl/ 1.0 n)))))
+        (v* v (/ 1.0 n)))))
